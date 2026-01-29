@@ -42,6 +42,64 @@ make
 ./OrinVideoSender --send --server 192.168.1.176 --port 12345
 ```
 
+## MuJoCo D435i (virtual camera)
+
+This repo can send a MuJoCo virtual camera stream (e.g. `d435i_rgb`) via a
+v4l2loopback device. The flow is:
+1) MuJoCo renders frames and writes to `/dev/video10`
+2) `OrinVideoSender` reads `/dev/video10` and streams to the Quest client
+
+### Prereqs (host)
+
+Create a v4l2loopback device on the host:
+```
+sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="mujoco_cam" exclusive_caps=1
+ls -l /dev/video10
+```
+
+If running in Docker, pass the device through to the container:
+```
+devices:
+  - /dev/video10:/dev/video10
+```
+
+After host reboot, the device may exist on the host but not in the container.
+Verify inside the container:
+```
+ls -l /dev/video10
+```
+If it is missing, restart/recreate the container (or devcontainer) so Docker
+re-attaches the device.
+
+### MuJoCo side (container)
+
+Ensure your MuJoCo sim is writing to `/dev/video10` (see
+`unitree_mujoco/simulate_python/config.py` in the main workspace) and start it:
+```
+cd unitree_mujoco/simulate_python
+python ./unitree_mujoco.py
+```
+
+### Run OrinVideoSender (container)
+
+Command port: **13579**, stream port: **12345** (Quest defaults).
+
+Mono MUJOCO stream:
+```
+./OrinVideoSender --cmd-listen 0.0.0.0:13579 --mujoco-mono
+```
+
+ZEDMINI SBS compatibility (2560x720 side-by-side):
+```
+./OrinVideoSender --cmd-listen 0.0.0.0:13579 --zed-sbs
+```
+
+### Quest client
+
+- Select **MUJOCO** in the dropdown if using `--mujoco-mono`.
+- Select **ZEDMINI** if using `--zed-sbs`.
+- Set Host IP to the sender machine (e.g. `10.20.20.53`).
+
 ## One More Thing 
 
 - For software encoding ffmpeg, please refer to [RobotVisionTest](https://github.com/XR-Robotics/RobotVision-PC/tree/main/VideoTransferPC/RobotVisionTest).
