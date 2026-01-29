@@ -239,6 +239,37 @@ public:
 
   bool hasClient() { return client_socket != -1; }
 
+  void sendData(const char *data, uint32_t size) {
+    if (!client_connected || client_socket < 0) {
+      throw TCPException("Client not connected");
+    }
+
+    if (!data || size == 0) {
+      throw TCPException("Invalid data or size");
+    }
+
+    uint32_t total_sent = 0;
+    while (total_sent < size) {
+      ssize_t sent = send(client_socket, data + total_sent, size - total_sent,
+                          MSG_NOSIGNAL);
+      if (sent < 0) {
+        int error = errno;
+        if (error == ECONNRESET || error == EPIPE) {
+          client_connected = false;
+          throw TCPException("Connection lost: " +
+                             std::string(strerror(error)));
+        }
+        throw TCPException("Send failed: " + std::string(strerror(error)));
+      }
+      total_sent += sent;
+    }
+  }
+
+  void sendData(const std::vector<uint8_t> &data) {
+    sendData(reinterpret_cast<const char *>(data.data()),
+             static_cast<uint32_t>(data.size()));
+  }
+
   void TestLoopLatency() {
     if (client_socket != -1) {
       std::string msg = "LOOPTEST";
