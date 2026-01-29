@@ -30,6 +30,8 @@ bool raw_h264_enabled = false;
 bool len_le_enabled = false;
 bool avc_stream_enabled = false;
 bool zed_sbs_enabled = false;
+bool mujoco_mono_enabled = false;
+bool log_frames_enabled = false;
 
 static void signal_handler(int sig) {
   if (!stop_requested && loop) {
@@ -303,7 +305,7 @@ GstFlowReturn on_new_sample(GstAppSink *sink, gpointer user_data) {
     gst_buffer_unmap(buffer, &map);
   }
 
-  if (buffer) {
+  if (buffer && log_frames_enabled) {
     GstClockTime timestamp = GST_BUFFER_PTS(buffer);
     std::cout << "Encoded frame at timestamp: "
               << GST_TIME_AS_MSECONDS(timestamp) << " ms" << std::endl;
@@ -352,6 +354,10 @@ int main(int argc, char *argv[]) {
       avc_stream_enabled = true;
     } else if (arg == "--zed-sbs") {
       zed_sbs_enabled = true;
+    } else if (arg == "--mujoco-mono") {
+      mujoco_mono_enabled = true;
+    } else if (arg == "--log-frames") {
+      log_frames_enabled = true;
     } else if (arg == "--server" && i + 1 < argc) {
       server_ip = argv[++i];
     } else if (arg == "--port" && i + 1 < argc) {
@@ -367,6 +373,8 @@ int main(int argc, char *argv[]) {
       std::cout << "  --len-le       Use little-endian length prefix\n";
       std::cout << "  --avc          Output AVC stream format (length-prefixed NALs)\n";
       std::cout << "  --zed-sbs      Output 2560x720 side-by-side for ZEDMINI\n";
+      std::cout << "  --mujoco-mono  Force mono MuJoCo mode (640x480@30, default framing)\n";
+      std::cout << "  --log-frames   Log per-frame timestamps\n";
       std::cout << "  --server IP    Server IP address (default: 127.0.0.1)\n";
       std::cout << "  --port PORT    Server port (default: 12345)\n";
       std::cout << "  --help         Show this help message\n";
@@ -378,6 +386,14 @@ int main(int argc, char *argv[]) {
     std::cerr << "Error: --send, --listen, or --cmd-listen is required"
               << std::endl;
     return -1;
+  }
+
+  if (mujoco_mono_enabled) {
+    // Force default mono framing for Quest MUJOCO stream
+    zed_sbs_enabled = false;
+    raw_h264_enabled = false;
+    len_le_enabled = false;
+    avc_stream_enabled = false;
   }
 
   if (send_enabled) {
